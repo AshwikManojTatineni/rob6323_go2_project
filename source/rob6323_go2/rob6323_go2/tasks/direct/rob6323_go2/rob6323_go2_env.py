@@ -253,58 +253,69 @@ class Rob6323Go2Env(DirectRLEnv):
         # yaw rate tracking
         yaw_rate_error = torch.square(self._commands[:, 2] - self.robot.data.root_ang_vel_b[:, 2])
         yaw_rate_error_mapped = torch.exp(-yaw_rate_error / 0.25)
-        
-        
 
-        # action rate penalization
+        # === ADDED Part 1: Action rate penalization ===
         # First derivative (Current - Last)
         rew_action_rate = torch.sum(torch.square(self._actions - self.last_actions[:, :, 0]), dim=1) * (self.cfg.action_scale ** 2)
         # Second derivative (Current - 2*Last + 2ndLast)
         rew_action_rate += torch.sum(torch.square(self._actions - 2 * self.last_actions[:, :, 0] + self.last_actions[:, :, 1]), dim=1) * (self.cfg.action_scale ** 2)
-
         # Update the prev action hist (roll buffer and insert new action)
         self.last_actions = torch.roll(self.last_actions, 1, 2)
         self.last_actions[:, :, 0] = self._actions[:]
-        self._step_contact_targets() # Update gait state
+
+        # === ADDED Part 4: Raibert heuristic ===
+        self._step_contact_targets()
         rew_raibert_heuristic = self._reward_raibert_heuristic()
 
-        # Calculate the sum of squares of the X and Y components of projected_gravity_b.
-        rew_orient = torch.sum(torch.square(self.robot.data.projected_gravity_b[:, :2]), dim=1) # Penalize deviation from upright orientation
+        # === ADDED: Part 5 - Orientation penalty ===
+        # Penalize non-flat orientation (projected gravity XY should be 0 when robot is flat)
+        rew_orient = torch.sum(torch.square(self.robot.data.projected_gravity_b[:, :2]), dim=1)
 
-        # Penalize Z linear velocity
+        # === ADDED: Part Penalize vertical velocity (z-component of base linear velocity) ===
         rew_lin_vel_z = torch.square(self.robot.data.root_lin_vel_b[:, 2])
 
-        # Penalize joint velocities
+        # === ADDED: Penalize high joint velocities ===
         rew_dof_vel = torch.sum(torch.square(self.robot.data.joint_vel), dim=1)
 
-        # Penalize angular velocity in X and Y
+        # === ADDED: Penalize angular velocity in XY plane (roll/pitch) ===
         rew_ang_vel_xy = torch.sum(torch.square(self.robot.data.root_ang_vel_b[:, :2]), dim=1)
 
+        # === ADDED: Penalize low foot height during swing phase ===
+        # Matches IsaacGym reference: reference/go2_terrain.py compute_reward_CaT()
+        # phases: 0 at start/end of swing, 1 at apex of swing
         phases = 1 - torch.abs(1.0 - torch.clip((self.foot_indices * 2.0) - 1.0, 0.0, 1.0) * 2.0)
-        foot_height = (self.foot_positions_w[:, :, 2]).view(self.num_envs, -1) # - reference_heights
-        target_height = 0.08 * phases + 0.02 # offset for foot radius 2cm
-        rew_foot_clearance = torch.square(target_height - foot_height) * (1 - self.desired_contact_states)
-        rew_feet_clearance = torch.sum(rew_foot_clearance, dim=1) 
+        # Get foot heights (Z coordinate in world frame)
+        foot_heights = self.foot_positions_w[:, :, 2]
+        # Target height: 8cm max clearance at swing apex + 2cm foot radius offset
+        target_height = 0.08 * phases + 0.02
+        # Penalize deviation from target, only during swing (when desired_contact_states is 0)
+        rew_foot_clearance = torch.square(target_height - foot_heights) * (1 - self.desired_contact_states)
+        rew_feet_clearance = torch.sum(rew_foot_clearance, dim=1)
 
-        net_contact_forces = self._contact_sensor.data.net_forces_w_history
-        foot_forces = torch.norm(net_contact_forces[:, self._feet_ids_sensor, :], dim=-1)
+        # === ADDED Part 6: Tracking contacts shaped force ===
+        # Matches IsaacGym reference: reference/go2_terrain.py compute_reward_CaT()
+        # Penalize contact forces during swing phase (when foot should be in air)
+        foot_forces = torch.norm(self._contact_sensor.data.net_forces_w[:, self._feet_ids_sensor, :], dim=-1)
         desired_contact = self.desired_contact_states
         rew_tracking_contacts_shaped_force = torch.zeros(self.num_envs, device=self.device)
         for i in range(4):
-            rew_tracking_contacts_shaped_force += - (1 - desired_contact[:, i]) * (1 - torch.exp(-1 * foot_forces[:, i] ** 2 / 100.))
-        rew_tracking_contacts_shaped_force = rew_tracking_contacts_shaped_force / 4.0 # Average of 4 feet
-        # Add to rewards dict
+            # When desired_contact=0 (swing), penalize any contact force
+            rew_tracking_contacts_shaped_force += -(1 - desired_contact[:, i]) * (
+                1 - torch.exp(-1 * foot_forces[:, i] ** 2 / 100.0)
+            )
+        rew_tracking_contacts_shaped_force = rew_tracking_contacts_shaped_force / 4  # Average over 4 feet
+        
         rewards = {
-            "track_lin_vel_xy_exp": lin_vel_error_mapped * self.cfg.lin_vel_reward_scale, # Removed step_dt
-            "track_ang_vel_z_exp": yaw_rate_error_mapped * self.cfg.yaw_rate_reward_scale, # Removed step_dt
+            "track_lin_vel_xy_exp": lin_vel_error_mapped * self.cfg.lin_vel_reward_scale,
+            "track_ang_vel_z_exp": yaw_rate_error_mapped * self.cfg.yaw_rate_reward_scale,
             "rew_action_rate": rew_action_rate * self.cfg.action_rate_reward_scale,
             "raibert_heuristic": rew_raibert_heuristic * self.cfg.raibert_heuristic_reward_scale,
             "orient": rew_orient * self.cfg.orient_reward_scale,
             "lin_vel_z": rew_lin_vel_z * self.cfg.lin_vel_z_reward_scale,
             "dof_vel": rew_dof_vel * self.cfg.dof_vel_reward_scale,
             "ang_vel_xy": rew_ang_vel_xy * self.cfg.ang_vel_xy_reward_scale,
-            "feetClearance": rew_feet_clearance * self.cfg.feet_clearance_reward_scale,
-            "trackingContactsShapedForce": rew_tracking_contacts_shaped_force * self.cfg.tracking_contacts_shaped_force_reward_scale,
+            "feet_clearance": rew_feet_clearance * self.cfg.feet_clearance_reward_scale,
+            "tracking_contacts_shaped_force": rew_tracking_contacts_shaped_force * self.cfg.tracking_contacts_shaped_force_reward_scale,
         }
         reward = torch.sum(torch.stack(list(rewards.values())), dim=0)
         # Logging

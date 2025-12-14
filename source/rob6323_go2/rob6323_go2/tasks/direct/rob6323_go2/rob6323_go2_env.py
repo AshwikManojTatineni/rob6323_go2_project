@@ -289,10 +289,9 @@ class Rob6323Go2Env(DirectRLEnv):
         net_contact_forces = self._contact_sensor.data.net_forces_w_history
         foot_forces = torch.norm(net_contact_forces[:, self._feet_ids_sensor, :], dim=-1)
         desired_contact = self.desired_contact_states
-        rew_tracking_contacts_shaped_force = 0.
+        rew_tracking_contacts_shaped_force = torch.zeros(self.num_envs, device=self.device)
         for i in range(4):
-            rew_tracking_contacts_shaped_force += - (1 - desired_contact[:, i]) * (
-                        1 - torch.exp(-1 * foot_forces[:, i] ** 2 / 100.))
+            rew_tracking_contacts_shaped_force += - (1 - desired_contact[:, i]) * (1 - torch.exp(-1 * foot_forces[:, i] ** 2 / 100.))
         rew_tracking_contacts_shaped_force = rew_tracking_contacts_shaped_force / 4.0 # Average of 4 feet
         # Add to rewards dict
         rewards = {

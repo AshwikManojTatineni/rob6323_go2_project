@@ -99,9 +99,10 @@ class Rob6323Go2Env(DirectRLEnv):
         self.t_stiction = 0.0
         self.t_viscous = 0.0
 
-        # extra credit: biped
-        self.front_feet = [0, 1]
-        self.rear_feet = [2, 3]
+# extra credit: biped
+        self.FRONT_FEET = [0, 1]  # Define the UPPERCASE version first
+        self.HIND_FEET = [2, 3]   # Define the UPPERCASE version first
+
         self.front_feet = self.FRONT_FEET
         self.rear_feet = self.HIND_FEET
 

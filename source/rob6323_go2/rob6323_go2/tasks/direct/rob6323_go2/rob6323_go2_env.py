@@ -79,6 +79,8 @@ class Rob6323Go2Env(DirectRLEnv):
             id_list, _ = self._contact_sensor.find_bodies(name)
             self._feet_ids_sensor.append(id_list[0])
 
+        self._front_foot_id = [self._feet_ids_sensor[0], self._feet_ids_sensor[1]]
+
         # Variables needed for the raibert heuristic
         self.gait_indices = torch.zeros(self.num_envs, dtype=torch.float, device=self.device, requires_grad=False)
         self.clock_inputs = torch.zeros(self.num_envs, 4, dtype=torch.float, device=self.device, requires_grad=False)
@@ -430,7 +432,10 @@ class Rob6323Go2Env(DirectRLEnv):
         fallen = self.robot.data.projected_gravity_b[:, 2] > -0.2
         base_too_low = self.robot.data.root_pos_w[:, 2] < 0.30
 
-        front_contact = torch.any(net_contact_forces[:, :, self._front_foot_id] > 20.0, dim=1)
+        forces_norm = torch.norm(net_contact_forces[:, :, self._front_foot_id], dim=-1)
+        
+        # Check if ANY historical step (dim 1) or ANY front foot (dim 2) exceeded 20N
+        front_contact = torch.any(torch.any(forces_norm > 20.0, dim=1), dim=1)
 
         died = fallen | base_too_low | front_contact
 

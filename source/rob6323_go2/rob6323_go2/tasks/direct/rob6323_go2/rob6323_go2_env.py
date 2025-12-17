@@ -102,6 +102,8 @@ class Rob6323Go2Env(DirectRLEnv):
         # extra credit: biped
         self.front_feet = [0, 1]
         self.rear_feet = [2, 3]
+        self.front_feet = self.FRONT_FEET
+        self.rear_feet = self.HIND_FEET
 
     # Defines contact plan
     def _step_contact_targets(self):

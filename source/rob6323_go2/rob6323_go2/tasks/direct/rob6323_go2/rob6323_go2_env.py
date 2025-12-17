@@ -50,14 +50,14 @@ class Rob6323Go2Env(DirectRLEnv):
             for key in [
                 "track_lin_vel_xy_exp",
                 "track_ang_vel_z_exp",
-                "rew_action_rate",     # <--- Added part 1
-                "raibert_heuristic",    # <--- Added part 1
-                "orient",
-                "lin_vel_z",
-                "dof_vel",
-                "ang_vel_xy",
-                "feet_clearance",
-                "tracking_contacts_shaped_force"
+                # "rew_action_rate",     # <--- Added part 1
+                # "raibert_heuristic",    # <--- Added part 1
+                # "orient",
+                # "lin_vel_z",
+                # "dof_vel",
+                # "ang_vel_xy",
+                # "feet_clearance",
+                # "tracking_contacts_shaped_force"
                 "action_rate",       # <--- Added extra credit
                 "stand_height",      
                 "stand_pitch",       

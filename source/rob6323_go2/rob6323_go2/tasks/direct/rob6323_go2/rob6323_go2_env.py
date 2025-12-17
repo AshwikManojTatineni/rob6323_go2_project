@@ -94,8 +94,8 @@ class Rob6323Go2Env(DirectRLEnv):
         self.set_debug_vis(self.cfg.debug_vis)
 
         # extra credit: actuator friction
-        self.fs_stiction = 0.0
-        self.mu_viscous = 0.0
+        self.fs_stiction = torch.zeros(self.num_envs, 12, dtype=torch.float, device=self.device)
+        self.mu_viscous = torch.zeros(self.num_envs, 12, dtype=torch.float, device=self.device)
         self.t_stiction = 0.0
         self.t_viscous = 0.0
 
@@ -458,8 +458,15 @@ class Rob6323Go2Env(DirectRLEnv):
         self.robot.write_root_velocity_to_sim(default_root_state[:, 7:], env_ids)
         self.robot.write_joint_state_to_sim(joint_pos, joint_vel, None, env_ids)
         # randomization of friction coefficient
-        self.fs_stiction = sample_uniform(0.0, 0.3)
-        self.mu_viscous = sample_uniform(0.0, 2.5)
+        self.fs_stiction[env_ids] = sample_uniform(
+            0.0, 0.3, (len(env_ids), 12), device=self.device
+        )
+        
+        # Sample uniform random values for viscous friction: range [0.0, 2.5]
+        # Shape: (num_resets, 12)
+        self.mu_viscous[env_ids] = sample_uniform(
+            0.0, 2.5, (len(env_ids), 12), device=self.device
+        )
         
         # Logging
         extras = dict()

@@ -58,6 +58,10 @@ class Rob6323Go2Env(DirectRLEnv):
                 "ang_vel_xy",
                 "feet_clearance",
                 "tracking_contacts_shaped_force"
+                "action_rate",       # <--- Added extra credit
+                "stand_height",      
+                "stand_pitch",       
+                "front_contact",
             ]
         }
 

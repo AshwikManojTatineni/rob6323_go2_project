@@ -99,6 +99,10 @@ class Rob6323Go2Env(DirectRLEnv):
         self.t_stiction = 0.0
         self.t_viscous = 0.0
 
+        # extra credit: biped
+        self.front_feet = [0, 1]
+        self.rear_feet = [2, 3]
+
     # Defines contact plan
     def _step_contact_targets(self):
         frequencies = 3.
@@ -158,6 +162,25 @@ class Rob6323Go2Env(DirectRLEnv):
         self.desired_contact_states[:, 2] = smoothing_multiplier_RL
         self.desired_contact_states[:, 3] = smoothing_multiplier_RR
 
+        # BIPEDAL CONTACT POLICY : Extra Credit
+        # Hind legs: always stance
+        self.desired_contact_states[:, self.HIND_FEET] = 1.0
+
+        # Front legs: always swing (arms)
+        self.desired_contact_states[:, self.FRONT_FEET] = 0.0
+
+        # Clock inputs:
+        # Hind legs → low-frequency micro-balance
+        self.clock_inputs[:, self.HIND_FEET] = torch.sin(
+            2 * np.pi * self.gait_indices.unsqueeze(1)
+        ) * 0.2
+
+        # Front legs → expressive arm motion
+        self.clock_inputs[:, self.FRONT_FEET] = torch.sin(
+            2 * np.pi * self.gait_indices.unsqueeze(1)
+        )
+
+
     def _reward_raibert_heuristic(self):
         cur_footsteps_translated = self.foot_positions_w - self.robot.data.root_pos_w.unsqueeze(1)
         footsteps_in_body_frame = torch.zeros(self.num_envs, 4, 3, device=self.device)
@@ -213,6 +236,15 @@ class Rob6323Go2Env(DirectRLEnv):
 
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
         self._actions = actions.clone()
+
+        # Front legs (FL, FR): expressive
+        actions[:, 0:6] *= 1.0
+
+        # Hind legs (RL, RR): stiff & stable
+        actions[:, 6:12] *= 0.4
+
+        self._actions = actions
+
         # Compute desired joint positions from policy actions
         self.desired_joint_pos = (
             self.cfg.action_scale * self._actions 
@@ -243,6 +275,15 @@ class Rob6323Go2Env(DirectRLEnv):
 
     def _get_observations(self) -> dict:
         self._previous_actions = self._actions.clone()
+        # Base height (critical for upright balance): Extra Credit
+        base_height = self.robot.data.root_pos_w[:, 2:3]
+
+        # Front toe positions relative to base (arm tracking)
+        front_toes_rel = (
+            self.foot_positions_w[:, self.FRONT_FEET, :]
+            - self.robot.data.root_pos_w.unsqueeze(1)
+        ).reshape(self.num_envs, -1)
+
         obs = torch.cat(
             [
                 tensor
@@ -250,7 +291,9 @@ class Rob6323Go2Env(DirectRLEnv):
                     self.robot.data.root_lin_vel_b,
                     self.robot.data.root_ang_vel_b,
                     self.robot.data.projected_gravity_b,
+                    base_height,
                     self._commands,
+                    front_toes_rel,
                     self.robot.data.joint_pos - self.robot.data.default_joint_pos,
                     self.robot.data.joint_vel,
                     self._actions,
@@ -321,19 +364,49 @@ class Rob6323Go2Env(DirectRLEnv):
                 1 - torch.exp(-1 * foot_forces[:, i] ** 2 / 100.0)
             )
         rew_tracking_contacts_shaped_force = rew_tracking_contacts_shaped_force / 4  # Average over 4 feet
+
+        # Extra Credit biped upright height and upright pitch (projected gravity z = -1)
+        rew_height = torch.exp(
+            -torch.square(self.robot.data.root_pos_w[:, 2] - 0.55) / 0.02
+        ) 
+        rew_pitch = torch.exp(
+            -torch.square(self.robot.data.projected_gravity_b[:, 2] + 1.0) / 0.05
+        )
+
+        # Front-foot collision penalty (arms should not hit the ground)
+        front_foot_forces = torch.norm(self._contact_sensor.data.net_forces_w[:, self.front_feet, :], dim=-1)
+        rew_front_foot_collision = -torch.exp(-torch.sum(front_foot_forces ** 2, dim=1) / 50.0)
+
+        standing_quality = torch.clip((self.robot.data.root_pos_w[:, 2] - 0.35) / 0.2, 0.0, 1.0)
+
+        lin_vel_error_mapped *= standing_quality
+        yaw_rate_error_mapped *= standing_quality
+
+
         
+        # rewards = {
+        #     "track_lin_vel_xy_exp": lin_vel_error_mapped * self.cfg.lin_vel_reward_scale, # Part 1
+        #     "track_ang_vel_z_exp": yaw_rate_error_mapped * self.cfg.yaw_rate_reward_scale, # Part 1
+        #     "rew_action_rate": rew_action_rate * self.cfg.action_rate_reward_scale, # Part 1
+        #     "raibert_heuristic": rew_raibert_heuristic * self.cfg.raibert_heuristic_reward_scale,
+        #     "orient": rew_orient * self.cfg.orient_reward_scale,
+        #     "lin_vel_z": rew_lin_vel_z * self.cfg.lin_vel_z_reward_scale,
+        #     "dof_vel": rew_dof_vel * self.cfg.dof_vel_reward_scale,
+        #     "ang_vel_xy": rew_ang_vel_xy * self.cfg.ang_vel_xy_reward_scale,
+        #     "feet_clearance": rew_feet_clearance * self.cfg.feet_clearance_reward_scale,
+        #     "tracking_contacts_shaped_force": rew_tracking_contacts_shaped_force * self.cfg.tracking_contacts_shaped_force_reward_scale,
+        # }
         rewards = {
-            "track_lin_vel_xy_exp": lin_vel_error_mapped * self.cfg.lin_vel_reward_scale, # Part 1
-            "track_ang_vel_z_exp": yaw_rate_error_mapped * self.cfg.yaw_rate_reward_scale, # Part 1
-            "rew_action_rate": rew_action_rate * self.cfg.action_rate_reward_scale, # Part 1
-            "raibert_heuristic": rew_raibert_heuristic * self.cfg.raibert_heuristic_reward_scale,
-            "orient": rew_orient * self.cfg.orient_reward_scale,
-            "lin_vel_z": rew_lin_vel_z * self.cfg.lin_vel_z_reward_scale,
-            "dof_vel": rew_dof_vel * self.cfg.dof_vel_reward_scale,
-            "ang_vel_xy": rew_ang_vel_xy * self.cfg.ang_vel_xy_reward_scale,
-            "feet_clearance": rew_feet_clearance * self.cfg.feet_clearance_reward_scale,
-            "tracking_contacts_shaped_force": rew_tracking_contacts_shaped_force * self.cfg.tracking_contacts_shaped_force_reward_scale,
+            "stand_height": rew_height * self.stand_height_scale,
+            "stand_pitch": rew_pitch * self.stand_pitch_scale,
+            "front_contact": rew_front_foot_collision * self.front_contact_scale,
+
+            "track_lin_vel_xy_exp": lin_vel_error_mapped * self.cfg.lin_vel_reward_scale,
+            "track_ang_vel_z_exp": yaw_rate_error_mapped * self.cfg.yaw_rate_reward_scale,
+
+            "action_rate": rew_action_rate * self.action_rate_reward_scale,
         }
+
         reward = torch.sum(torch.stack(list(rewards.values())), dim=0)
         # Logging
         for key, value in rewards.items():
@@ -343,14 +416,21 @@ class Rob6323Go2Env(DirectRLEnv):
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
         time_out = self.episode_length_buf >= self.max_episode_length - 1
         net_contact_forces = self._contact_sensor.data.net_forces_w_history
-        cstr_termination_contacts = torch.any(torch.max(torch.norm(net_contact_forces[:, :, self._base_id], dim=-1), dim=1)[0] > 1.0, dim=1)
-        cstr_upsidedown = self.robot.data.projected_gravity_b[:, 2] > 0
-        # terminate if base is too low
-        base_height = self.robot.data.root_pos_w[:, 2]
-        cstr_base_height_min = base_height < self.cfg.base_height_min
+        # cstr_termination_contacts = torch.any(torch.max(torch.norm(net_contact_forces[:, :, self._base_id], dim=-1), dim=1)[0] > 1.0, dim=1)
+        # cstr_upsidedown = self.robot.data.projected_gravity_b[:, 2] > 0
+        # # terminate if base is too low
+        # base_height = self.robot.data.root_pos_w[:, 2]
+        # cstr_base_height_min = base_height < self.cfg.base_height_min
 
-        # apply all terminations
-        died = cstr_termination_contacts | cstr_upsidedown | cstr_base_height_min
+        # # apply all terminations
+        # died = cstr_termination_contacts | cstr_upsidedown | cstr_base_height_min
+        fallen = self.robot.data.projected_gravity_b[:, 2] > -0.2
+        base_too_low = self.robot.data.root_pos_w[:, 2] < 0.30
+
+        front_contact = torch.any(net_contact_forces[:, :, self._front_foot_id] > 20.0, dim=1)
+
+        died = fallen | base_too_low | front_contact
+
         return died, time_out
 
     def _reset_idx(self, env_ids: Sequence[int] | None):

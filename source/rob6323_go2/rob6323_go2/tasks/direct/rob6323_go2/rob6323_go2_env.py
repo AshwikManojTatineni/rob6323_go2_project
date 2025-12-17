@@ -108,6 +108,11 @@ class Rob6323Go2Env(DirectRLEnv):
         self.front_feet = self.FRONT_FEET
         self.rear_feet = self.HIND_FEET
 
+        self.stand_height_scale = -3.0   # Penalty scale for height
+        self.stand_pitch_scale = -1.0    # Penalty scale for pitch
+        self.front_contact_scale = 1.0   # Scale for front foot collision
+        self.action_rate_reward_scale = -0.01 # Scale for action rate
+
     # Defines contact plan
     def _step_contact_targets(self):
         frequencies = 3.

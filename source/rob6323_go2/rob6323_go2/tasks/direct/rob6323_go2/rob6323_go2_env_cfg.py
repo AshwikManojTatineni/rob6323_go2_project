@@ -26,7 +26,7 @@ class Rob6323Go2EnvCfg(DirectRLEnvCfg):
     # - spaces definition
     action_scale = 0.25
     action_space = 12
-    observation_space = 48 + 4 # Added 4 for clock inputs
+    observation_space = 59 # Added 4 for clock inputs
 
     raibert_heuristic_reward_scale = -10.0
     feet_clearance_reward_scale = -30.0

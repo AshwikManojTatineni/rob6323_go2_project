@@ -187,7 +187,7 @@ class Rob6323Go2Env(DirectRLEnv):
         # Hind legs → low-frequency micro-balance
         self.clock_inputs[:, self.HIND_FEET] = torch.sin(
             2 * np.pi * self.gait_indices.unsqueeze(1)
-        ) * 0.2
+        ) * 0.1
 
         # Front legs → expressive arm motion
         self.clock_inputs[:, self.FRONT_FEET] = torch.sin(
@@ -339,7 +339,7 @@ class Rob6323Go2Env(DirectRLEnv):
 
         # === ADDED Part 4: Raibert heuristic ===
         self._step_contact_targets()
-        rew_raibert_heuristic = self._reward_raibert_heuristic()
+        #rew_raibert_heuristic = self._reward_raibert_heuristic()
 
         # === ADDED: Part 5 - Orientation penalty ===
         # Penalize non-flat orientation (projected gravity XY should be 0 when robot is flat)
@@ -438,7 +438,7 @@ class Rob6323Go2Env(DirectRLEnv):
 
         # # apply all terminations
         # died = cstr_termination_contacts | cstr_upsidedown | cstr_base_height_min
-        fallen = self.robot.data.projected_gravity_b[:, 2] > -0.2
+        fallen = self.robot.data.projected_gravity_b[:, 2] > -0.05
         base_too_low = self.robot.data.root_pos_w[:, 2] < 0.30
 
         forces_norm = torch.norm(net_contact_forces[:, :, self._front_foot_id], dim=-1)

@@ -16,7 +16,7 @@ from isaaclab.assets import Articulation
 from isaaclab.envs import DirectRLEnv
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 from isaaclab.utils.math import sample_uniform
-from isaaclab.sensors import ContactSensor
+from isaaclab.sensors import ContactSensor, RayCaster
 from isaaclab.markers import VisualizationMarkers
 import isaaclab.utils.math as math_utils
 
@@ -195,22 +195,35 @@ class Rob6323Go2Env(DirectRLEnv):
         return reward
     
     def _setup_scene(self):
-        self.robot = Articulation(self.cfg.robot_cfg)
-        self._contact_sensor = ContactSensor(self.cfg.contact_sensor)
-        # add ground plane
+        # 1. Configure terrain parameters BEFORE creation
         self.cfg.terrain.num_envs = self.scene.cfg.num_envs
         self.cfg.terrain.env_spacing = self.scene.cfg.env_spacing
+
+        # 2. Create terrain
         self._terrain = self.cfg.terrain.class_type(self.cfg.terrain)
-        # clone and replicate
+
+        # 3. Create robot and REGISTER IT
+        self.robot = Articulation(self.cfg.robot_cfg)
+        self.scene.articulations["robot"] = self.robot
+
+        # 4. Create and register sensors
+        self._contact_sensor = ContactSensor(self.cfg.contact_sensor)
+        self._height_scanner = RayCaster(self.cfg.height_scanner)
+        self.scene.sensors["height_scanner"] = self._height_scanner
+
+        # 5. NOW clone environments
         self.scene.clone_environments(copy_from_source=False)
-        # we need to explicitly filter collisions for CPU simulation
+
+        # 6. CPU-only collision filtering
         if self.device == "cpu":
             self.scene.filter_collisions(global_prim_paths=[])
-        # add articulation to scene
-        self.scene.articulations["robot"] = self.robot
-        # add lights
-        light_cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
+
+        # 7. Lighting
+        light_cfg = sim_utils.DomeLightCfg(
+            intensity=2000.0, color=(0.75, 0.75, 0.75)
+        )
         light_cfg.func("/World/Light", light_cfg)
+
 
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
         self._actions = actions.clone()
@@ -244,6 +257,9 @@ class Rob6323Go2Env(DirectRLEnv):
 
     def _get_observations(self) -> dict:
         self._previous_actions = self._actions.clone()
+        height_data = (
+                self._height_scanner.data.pos_w[:, 2].unsqueeze(1) - self._height_scanner.data.ray_hits_w[..., 2] - 0.5
+            ).clip(-1.0, 1.0)
         obs = torch.cat(
             [
                 tensor
@@ -254,6 +270,7 @@ class Rob6323Go2Env(DirectRLEnv):
                     self._commands,
                     self.robot.data.joint_pos - self.robot.data.default_joint_pos,
                     self.robot.data.joint_vel,
+                    height_data,
                     self._actions,
                     self.clock_inputs,
                 )

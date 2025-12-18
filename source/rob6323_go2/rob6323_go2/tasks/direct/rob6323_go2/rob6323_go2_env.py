@@ -19,7 +19,7 @@ from isaaclab.utils.math import sample_uniform
 from isaaclab.sensors import ContactSensor
 from isaaclab.markers import VisualizationMarkers
 import isaaclab.utils.math as math_utils
-import random # extra credit, added for friction randomization
+
 
 from .rob6323_go2_env_cfg import Rob6323Go2EnvCfg
 
@@ -95,10 +95,10 @@ class Rob6323Go2Env(DirectRLEnv):
         self.set_debug_vis(self.cfg.debug_vis)
 
         # extra credit: actuator friction
-        self.fs_stiction = 0.0
-        self.mu_viscous = 0.0
+        self.fs_stiction = sample_uniform(0.0, 0.3, (self.num_envs, 12), device=self.device)
+        self.mu_viscous = sample_uniform(0.0, 2.5, (self.num_envs, 12), device=self.device)
         self.t_stiction = 0.0
-        self.t_viscous = 0.0
+        self.t_viscous =  0.0
 
     # Defines contact plan
     def _step_contact_targets(self):
@@ -379,9 +379,8 @@ class Rob6323Go2Env(DirectRLEnv):
         self.robot.write_root_velocity_to_sim(default_root_state[:, 7:], env_ids)
         self.robot.write_joint_state_to_sim(joint_pos, joint_vel, None, env_ids)
         # randomization of friction coefficient
-        self.fs_stiction = random.uniform(0.0, 0.3)
-        self.mu_viscous = random.uniform(0.0, 2.5)
-        
+        self.fs_stiction[env_ids] = sample_uniform(0.0, 0.3, (len(env_ids), 12), device=self.device)
+        self.mu_viscous[env_ids] = sample_uniform(0.0, 2.5, (len(env_ids), 12), device=self.device)
         # Logging
         extras = dict()
         for key in self._episode_sums.keys():

@@ -326,8 +326,8 @@ class Rob6323Go2Env(DirectRLEnv):
         foot_heights = self.foot_positions_w[:, :, 2]
         # Target height: 8cm max clearance at swing apex + 2cm foot radius offset
 
-
-        target_height = 0.08 * phases + 0.02  + 0.15 ## Temporarily adding some extra height so that rough terrain can be cleared . No height data will be used as of now 
+        rand_offset = 0.05 * torch.rand(self.num_envs, 1, device=self.device)
+        target_height = 0.08 * phases + 0.02 + rand_offset## Temporarily adding some extra height so that rough terrain can be cleared . No height data will be used as of now 
         
         
         # Penalize deviation from target, only during swing (when desired_contact_states is 0)

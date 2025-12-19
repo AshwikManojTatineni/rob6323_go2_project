@@ -108,6 +108,9 @@ class Rob6323Go2Env(DirectRLEnv):
         self.t_stiction = 0.0
         self.t_viscous =  0.0
 
+
+        
+
     # Defines contact plan
     def _step_contact_targets(self):
         frequencies = 3.

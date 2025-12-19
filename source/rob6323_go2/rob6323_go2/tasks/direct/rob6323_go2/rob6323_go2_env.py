@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import numpy as np
 import gymnasium as gym
+import math
 import torch
 from collections.abc import Sequence
 
@@ -18,7 +19,7 @@ from isaaclab.utils.math import sample_uniform
 from isaaclab.sensors import ContactSensor
 from isaaclab.markers import VisualizationMarkers
 import isaaclab.utils.math as math_utils
-
+import random # extra credit, added for friction randomization
 
 from .rob6323_go2_env_cfg import Rob6323Go2EnvCfg
 
@@ -475,6 +476,7 @@ class Rob6323Go2Env(DirectRLEnv):
         self.robot.write_root_velocity_to_sim(default_root_state[:, 7:], env_ids)
         self.robot.write_joint_state_to_sim(joint_pos, joint_vel, None, env_ids)
         # randomization of friction coefficient
+<<<<<<< HEAD
         self.fs_stiction[env_ids] = sample_uniform(
             0.0, 0.3, (len(env_ids), 12), device=self.device
         )
@@ -484,6 +486,10 @@ class Rob6323Go2Env(DirectRLEnv):
         self.mu_viscous[env_ids] = sample_uniform(
             0.0, 2.5, (len(env_ids), 12), device=self.device
         )
+=======
+        self.fs_stiction = random.uniform(0.0, 0.3)
+        self.mu_viscous = random.uniform(0.0, 2.5)
+>>>>>>> parent of 6d87494 (actuator friction: lib fix)
         
         # Logging
         extras = dict()

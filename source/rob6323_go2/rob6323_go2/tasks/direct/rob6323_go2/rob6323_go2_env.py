@@ -330,7 +330,7 @@ class Rob6323Go2Env(DirectRLEnv):
         rew_ang_vel_xy = torch.sum(torch.square(self.robot.data.root_ang_vel_b[:, :2]), dim=1)
 
         # === ADDED: Joint torques,  === as in Anymal uneven terrain
-        rew_dof_torques = torch.sum(torch.square(self.robot.data.joint_torque), dim=1)
+        rew_dof_torques = torch.sum(torch.square(self.robot.data.joint_effort), dim=1)
         # === ADDED: Joint accelerations,  === as in Anymal uneven terrain
         rew_dof_acc = torch.sum(torch.square(self.robot.data.joint_acc), dim=1)
         # === ADDED: Feet air time === as in Anymal uneven terrain
@@ -347,7 +347,7 @@ class Rob6323Go2Env(DirectRLEnv):
         )
         contacts = torch.sum(is_contact, dim=1)
         # === ADDED: Flat Orientation === as in Anymal uneven terrain
-        flat_orientation = torch.sum(torch.square(self._robot.data.projected_gravity_b[:, :2]), dim=1)
+        flat_orientation = torch.sum(torch.square(self.robot.data.projected_gravity_b[:, :2]), dim=1)
 
         # === ADDED: Penalize low foot height during swing phase ===
         # Matches IsaacGym reference: reference/go2_terrain.py compute_reward_CaT()

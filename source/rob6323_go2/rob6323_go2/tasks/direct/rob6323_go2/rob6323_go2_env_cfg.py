@@ -59,7 +59,7 @@ class Rob6323Go2EnvCfg(DirectRLEnvCfg):
         prim_path="/World/ground",
         terrain_type="generator",
         terrain_generator=ROUGH_TERRAINS_CFG,
-        max_init_terrain_level=2,
+        max_init_terrain_level=1,
         collision_group=-1,
         physics_material=sim_utils.RigidBodyMaterialCfg(
             friction_combine_mode="multiply",
@@ -111,10 +111,17 @@ class Rob6323Go2EnvCfg(DirectRLEnvCfg):
     # reward scales
     lin_vel_reward_scale = 1.0
     yaw_rate_reward_scale = 0.5
-    action_rate_reward_scale = -0.05  ## Keeping it zero for now -0.05 
+    action_rate_reward_scale = -0.01  ## Keeping it zero for now -0.05 
 
     # Additional reward scales
     orient_reward_scale = -5.0#-5.0
-    lin_vel_z_reward_scale = -0.1#-0.1
+    lin_vel_z_reward_scale = -2.0#-0.1
     dof_vel_reward_scale = -0.0001#-0.0001
     ang_vel_xy_reward_scale = -0.05#-0.001
+
+    # New reward scales for uneven terrain
+    dof_torques_reward_scale = -2.5e-5
+    dof_acc_reward_scale = -2.5e-7
+    feet_air_time_reward_scale = -0.01
+    undesired_contacts_reward_scale = -1.0
+    flat_orientation_reward_scale = -5.0

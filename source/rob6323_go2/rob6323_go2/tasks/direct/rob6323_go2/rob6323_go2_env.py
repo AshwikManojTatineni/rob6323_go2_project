@@ -29,6 +29,7 @@ from isaaclab.markers import VisualizationMarkers
 import isaaclab.utils.math as math_utils
 
 
+
 from .rob6323_go2_env_cfg import Rob6323Go2EnvCfg
 
 class Rob6323Go2Env(DirectRLEnv):
@@ -63,9 +64,14 @@ class Rob6323Go2Env(DirectRLEnv):
                 "raibert_heuristic",    # <--- Added part 1
                 "orient",
                 "lin_vel_z",
-                "dof_vel",
+                "dof_torques_l2", # Anymal Uneven terrain
+                "dof_acc_l2",   # Anymal Uneven terrain
+                "dof_vel", 
                 "ang_vel_xy",
                 "feet_clearance",
+                "feet_air_time", # Anymal Uneven terrain
+                "undesired_contacts",# Anymal Uneven terrain
+                "flat_orientation_l2",# Anymal Uneven terrain
                 "tracking_contacts_shaped_force"
             ]
         }
@@ -107,6 +113,11 @@ class Rob6323Go2Env(DirectRLEnv):
         self.mu_viscous = sample_uniform(0.0, 2.5, (self.num_envs, 12), device=self.device)
         self.t_stiction = 0.0
         self.t_viscous =  0.0
+
+        # Get specific body indices
+        self._base_id, _ = self._contact_sensor.find_bodies("base")
+        self._feet_ids, _ = self._contact_sensor.find_bodies(".*FOOT")
+        self._undesired_contact_body_ids, _ = self._contact_sensor.find_bodies(".*THIGH")
 
     # Defines contact plan
     def _step_contact_targets(self):
@@ -318,6 +329,26 @@ class Rob6323Go2Env(DirectRLEnv):
         # === ADDED: Penalize angular velocity in XY plane (roll/pitch) ===
         rew_ang_vel_xy = torch.sum(torch.square(self.robot.data.root_ang_vel_b[:, :2]), dim=1)
 
+        # === ADDED: Joint torques,  === as in Anymal uneven terrain
+        rew_dof_torques = torch.sum(torch.square(self.robot.data.joint_torque), dim=1)
+        # === ADDED: Joint accelerations,  === as in Anymal uneven terrain
+        rew_dof_acc = torch.sum(torch.square(self.robot.data.joint_acc), dim=1)
+        # === ADDED: Feet air time === as in Anymal uneven terrain
+        first_contact = self._contact_sensor.compute_first_contact(self.step_dt)[:, self._feet_ids]
+        last_air_time = self._contact_sensor.data.last_air_time[:, self._feet_ids]
+        air_time = torch.sum((last_air_time - 0.5) * first_contact, dim=1) * (
+            torch.norm(self._commands[:, :2], dim=1) > 0.1
+        )
+        # === ADDED: Undesired contacts === as in Anymal uneven terrain
+        # undesired contacts
+        net_contact_forces = self._contact_sensor.data.net_forces_w_history
+        is_contact = (
+            torch.max(torch.norm(net_contact_forces[:, :, self._undesired_contact_body_ids], dim=-1), dim=1)[0] > 1.0
+        )
+        contacts = torch.sum(is_contact, dim=1)
+        # === ADDED: Flat Orientation === as in Anymal uneven terrain
+        flat_orientation = torch.sum(torch.square(self._robot.data.projected_gravity_b[:, :2]), dim=1)
+
         # === ADDED: Penalize low foot height during swing phase ===
         # Matches IsaacGym reference: reference/go2_terrain.py compute_reward_CaT()
         # phases: 0 at start/end of swing, 1 at apex of swing
@@ -326,8 +357,8 @@ class Rob6323Go2Env(DirectRLEnv):
         foot_heights = self.foot_positions_w[:, :, 2]
         # Target height: 8cm max clearance at swing apex + 2cm foot radius offset
 
-        rand_offset = 0.05 * torch.rand(self.num_envs, 1, device=self.device)
-        target_height = 0.12 * phases + 0.02 # Removred it for once  rand_offset## Temporarily adding some extra height so that rough terrain can be cleared . No height data will be used as of now 
+        rand_offset = 0.05 * (2*torch.rand(self.num_envs, 1, device=self.device) - 1)
+        target_height = 0.12 * phases + 0.02 + rand_offset
         
         
         # Penalize deviation from target, only during swing (when desired_contact_states is 0)
@@ -350,14 +381,19 @@ class Rob6323Go2Env(DirectRLEnv):
         rewards = {
             "track_lin_vel_xy_exp": lin_vel_error_mapped * self.cfg.lin_vel_reward_scale, # Part 1
             "track_ang_vel_z_exp": yaw_rate_error_mapped * self.cfg.yaw_rate_reward_scale, # Part 1
-            #"rew_action_rate": rew_action_rate * self.cfg.action_rate_reward_scale, # Part 1
-            #"raibert_heuristic": rew_raibert_heuristic * self.cfg.raibert_heuristic_reward_scale,
-            #"orient": rew_orient * self.cfg.orient_reward_scale,
-            #"lin_vel_z": rew_lin_vel_z * self.cfg.lin_vel_z_reward_scale,
-            #"dof_vel": rew_dof_vel * self.cfg.dof_vel_reward_scale,
-            #"ang_vel_xy": rew_ang_vel_xy * self.cfg.ang_vel_xy_reward_scale,
-            #"feet_clearance": rew_feet_clearance * self.cfg.feet_clearance_reward_scale,
-            #"tracking_contacts_shaped_force": rew_tracking_contacts_shaped_force * self.cfg.tracking_contacts_shaped_force_reward_scale,
+            "rew_action_rate": rew_action_rate * self.cfg.action_rate_reward_scale, # Part 1
+            "raibert_heuristic": rew_raibert_heuristic * self.cfg.raibert_heuristic_reward_scale,
+            "orient": rew_orient * self.cfg.orient_reward_scale,
+            "lin_vel_z": rew_lin_vel_z * self.cfg.lin_vel_z_reward_scale,
+            "dof_torques_l2": rew_dof_torques * self.cfg.dof_torques_reward_scale, # Anymal Uneven terrain
+            "dof_acc_l2": rew_dof_acc * self.cfg.dof_acc_reward_scale,  # Anymal Uneven terrain
+            "dof_vel": rew_dof_vel * self.cfg.dof_vel_reward_scale,
+            "ang_vel_xy": rew_ang_vel_xy * self.cfg.ang_vel_xy_reward_scale,
+            "feet_clearance": rew_feet_clearance * self.cfg.feet_clearance_reward_scale,
+            "feet_air_time": air_time * self.cfg.feet_air_time_reward_scale,    # Anymal Uneven terrain
+            "undesired_contacts": contacts * self.cfg.undesired_contacts_reward_scale, # Anymal Uneven terrain
+            "flat_orientation_l2": flat_orientation * self.cfg.flat_orientation_reward_scale, # Anymal Uneven terrain
+            "tracking_contacts_shaped_force": rew_tracking_contacts_shaped_force * self.cfg.tracking_contacts_shaped_force_reward_scale,
         }
         reward = torch.sum(torch.stack(list(rewards.values())), dim=0)
         # Logging

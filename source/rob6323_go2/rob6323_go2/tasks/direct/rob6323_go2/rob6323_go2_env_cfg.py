@@ -31,9 +31,9 @@ class Rob6323Go2EnvCfg(DirectRLEnvCfg):
     observation_space = 48 + 4 + 160 ## 160 for height data.  Clock inputs too. 
     
 
-    raibert_heuristic_reward_scale = 0.0 # -10.0
-    feet_clearance_reward_scale = 0.0 #-30.0
-    tracking_contacts_shaped_force_reward_scale = 0 # 4.0
+    raibert_heuristic_reward_scale = -10.0 # -10.0
+    feet_clearance_reward_scale = -30.0 #-30.0
+    tracking_contacts_shaped_force_reward_scale = 4.0 # 4.0
     
     state_space = 0
     debug_vis = True
@@ -41,7 +41,7 @@ class Rob6323Go2EnvCfg(DirectRLEnvCfg):
     Kp = 20.0  # Proportional gain
     Kd = 0.5   # Derivative gain
     torque_limits = 100.0  # Max torque
-    base_height_min = 0.05  # Terminate if base is lower than 20cm
+    base_height_min = 0.15  # Terminate if base is lower than 20cm
 
     # simulation
     sim: SimulationCfg = SimulationCfg(
@@ -59,7 +59,7 @@ class Rob6323Go2EnvCfg(DirectRLEnvCfg):
         prim_path="/World/ground",
         terrain_type="generator",
         terrain_generator=ROUGH_TERRAINS_CFG,
-        max_init_terrain_level=3,
+        max_init_terrain_level=2,
         collision_group=-1,
         physics_material=sim_utils.RigidBodyMaterialCfg(
             friction_combine_mode="multiply",
@@ -114,7 +114,7 @@ class Rob6323Go2EnvCfg(DirectRLEnvCfg):
     action_rate_reward_scale = -0.05  ## Keeping it zero for now -0.05 
 
     # Additional reward scales
-    orient_reward_scale = 0.0#-5.0
-    lin_vel_z_reward_scale = 0.0#-0.1
-    dof_vel_reward_scale = 0.0#-0.0001
-    ang_vel_xy_reward_scale = 0.0#-0.001
+    orient_reward_scale = -5.0#-5.0
+    lin_vel_z_reward_scale = -0.1#-0.1
+    dof_vel_reward_scale = -0.0001#-0.0001
+    ang_vel_xy_reward_scale = -0.05#-0.001

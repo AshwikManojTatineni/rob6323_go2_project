@@ -108,9 +108,6 @@ class Rob6323Go2Env(DirectRLEnv):
         self.t_stiction = 0.0
         self.t_viscous =  0.0
 
-
-        
-
     # Defines contact plan
     def _step_contact_targets(self):
         frequencies = 3.
@@ -330,7 +327,7 @@ class Rob6323Go2Env(DirectRLEnv):
         # Target height: 8cm max clearance at swing apex + 2cm foot radius offset
 
         rand_offset = 0.05 * torch.rand(self.num_envs, 1, device=self.device)
-        target_height = 0.08 * phases + 0.02 # Removred it for once  rand_offset## Temporarily adding some extra height so that rough terrain can be cleared . No height data will be used as of now 
+        target_height = 0.12 * phases + 0.02 # Removred it for once  rand_offset## Temporarily adding some extra height so that rough terrain can be cleared . No height data will be used as of now 
         
         
         # Penalize deviation from target, only during swing (when desired_contact_states is 0)

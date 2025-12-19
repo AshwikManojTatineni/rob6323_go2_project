@@ -28,7 +28,7 @@ class Rob6323Go2EnvCfg(DirectRLEnvCfg):
     # - spaces definition
     action_scale = 0.25
     action_space = 12
-    observation_space = 48 + 4+ 160 ## 160 for height data.  Clock inputs too. 
+    observation_space = 48 + 4 + 160 ## 160 for height data.  Clock inputs too. 
     
 
     raibert_heuristic_reward_scale = 0.0 # -10.0
@@ -111,7 +111,7 @@ class Rob6323Go2EnvCfg(DirectRLEnvCfg):
     # reward scales
     lin_vel_reward_scale = 1.0
     yaw_rate_reward_scale = 0.5
-    action_rate_reward_scale = 0.0  ## Keeping it zero for now -0.05 
+    action_rate_reward_scale = -0.05  ## Keeping it zero for now -0.05 
 
     # Additional reward scales
     orient_reward_scale = 0.0#-5.0

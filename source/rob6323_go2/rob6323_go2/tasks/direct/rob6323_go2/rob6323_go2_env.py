@@ -262,7 +262,7 @@ class Rob6323Go2Env(DirectRLEnv):
                 self._height_scanner.data.pos_w[:, 2].unsqueeze(1) - self._height_scanner.data.ray_hits_w[..., 2] - 0.5
             ).clip(-1.0, 1.0)
 
-        print("Height Data is ",height_data.shape)
+        #print("Height Data is ",height_data.shape)
         obs = torch.cat(
             [
                 tensor
@@ -324,7 +324,11 @@ class Rob6323Go2Env(DirectRLEnv):
         # Get foot heights (Z coordinate in world frame)
         foot_heights = self.foot_positions_w[:, :, 2]
         # Target height: 8cm max clearance at swing apex + 2cm foot radius offset
-        target_height = 0.08 * phases + 0.02
+
+
+        target_height = 0.08 * phases + 0.02  + 0.15 ## Temporarily adding some extra height so that rough terrain can be cleared . No height data will be used as of now 
+        
+        
         # Penalize deviation from target, only during swing (when desired_contact_states is 0)
         rew_foot_clearance = torch.square(target_height - foot_heights) * (1 - self.desired_contact_states)
         rew_feet_clearance = torch.sum(rew_foot_clearance, dim=1)

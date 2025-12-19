@@ -29,8 +29,19 @@ class Rob6323Go2EnvCfg(DirectRLEnvCfg):
     action_scale = 0.25
     action_space = 12
     observation_space = 48 + 4+ 160 ## 160 for height data.  Clock inputs too. 
+    
+
+    raibert_heuristic_reward_scale = -10.0
+    feet_clearance_reward_scale = -30.0
+    tracking_contacts_shaped_force_reward_scale = 4.0
+    
     state_space = 0
     debug_vis = True
+    # PD control gains
+    Kp = 20.0  # Proportional gain
+    Kd = 0.5   # Derivative gain
+    torque_limits = 100.0  # Max torque
+    base_height_min = 0.05  # Terminate if base is lower than 20cm
 
     # simulation
     sim: SimulationCfg = SimulationCfg(

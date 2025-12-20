@@ -16,9 +16,6 @@ from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.sensors import ContactSensorCfg
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.markers.config import BLUE_ARROW_X_MARKER_CFG, FRAME_MARKER_CFG, GREEN_ARROW_X_MARKER_CFG
-from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG
-
-from isaaclab.sensors import ContactSensorCfg, RayCasterCfg, patterns
 
 @configclass
 class Rob6323Go2EnvCfg(DirectRLEnvCfg):
@@ -28,20 +25,9 @@ class Rob6323Go2EnvCfg(DirectRLEnvCfg):
     # - spaces definition
     action_scale = 0.25
     action_space = 12
-    observation_space = 48 + 4 + 160 ## 160 for height data.  Clock inputs too. 
-    
-
-    raibert_heuristic_reward_scale = -10.0 # -10.0
-    feet_clearance_reward_scale = -30.0 #-30.0
-    tracking_contacts_shaped_force_reward_scale = 4.0 # 4.0
-    
+    observation_space = 48
     state_space = 0
     debug_vis = True
-    # PD control gains
-    Kp = 20.0  # Proportional gain
-    Kd = 0.5   # Derivative gain
-    torque_limits = 100.0  # Max torque
-    base_height_min = 0.15  # Terminate if base is lower than 20cm
 
     # simulation
     sim: SimulationCfg = SimulationCfg(
@@ -57,35 +43,17 @@ class Rob6323Go2EnvCfg(DirectRLEnvCfg):
     )
     terrain = TerrainImporterCfg(
         prim_path="/World/ground",
-        terrain_type="generator",
-        terrain_generator=ROUGH_TERRAINS_CFG,
-        max_init_terrain_level=1,
+        terrain_type="plane",
         collision_group=-1,
         physics_material=sim_utils.RigidBodyMaterialCfg(
             friction_combine_mode="multiply",
             restitution_combine_mode="multiply",
             static_friction=1.0,
             dynamic_friction=1.0,
-        ),
-        visual_material=sim_utils.MdlFileCfg(
-            mdl_path="{NVIDIA_NUCLEUS_DIR}/Materials/Base/Architecture/Shingles_01.mdl",
-            project_uvw=True,
+            restitution=0.0,
         ),
         debug_vis=False,
     )
-
-    # we add a height scanner for perceptive locomotion
-    height_scanner = RayCasterCfg(
-        prim_path="/World/envs/env_.*/Robot/base",
-        offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 20.0)),
-        ray_alignment="yaw",
-        pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=[1.6, 1.0]),
-        debug_vis=False,
-        mesh_prim_paths=["/World/ground"],
-    )
-
-    # reward scales (override from flat config)
-    flat_orientation_reward_scale = 0.0
     # robot(s)
     robot_cfg: ArticulationCfg = UNITREE_GO2_CFG.replace(prim_path="/World/envs/env_.*/Robot")
 
@@ -111,17 +79,5 @@ class Rob6323Go2EnvCfg(DirectRLEnvCfg):
     # reward scales
     lin_vel_reward_scale = 1.0
     yaw_rate_reward_scale = 0.5
-    action_rate_reward_scale = -0.01  ## Keeping it zero for now -0.05 
-
-    # Additional reward scales
-    orient_reward_scale = -5.0#-5.0
-    lin_vel_z_reward_scale = -2.0#-0.1
-    dof_vel_reward_scale = -0.0001#-0.0001
-    ang_vel_xy_reward_scale = -0.05#-0.001
-
-    # New reward scales for uneven terrain
-    dof_torques_reward_scale = -2.5e-5
-    dof_acc_reward_scale = -2.5e-7
-    feet_air_time_reward_scale = -0.01
-    undesired_contacts_reward_scale = -1.0
-    flat_orientation_reward_scale = -5.0
+    yaw_rate_reward_scale = 0.5
+    action_rate_reward_scale = -0.1

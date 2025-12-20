@@ -38,6 +38,7 @@ class Rob6323Go2Env(DirectRLEnv):
         # X/Y linear velocity and yaw angular velocity commands
         self._commands = torch.zeros(self.num_envs, 3, device=self.device)
 
+        # Logging
         # Update Logging
         self._episode_sums = {
             key: torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
@@ -45,7 +46,6 @@ class Rob6323Go2Env(DirectRLEnv):
                 "track_lin_vel_xy_exp",
                 "track_ang_vel_z_exp",
                 "rew_action_rate",     # <--- Added
-                "raibert_heuristic"    # <--- Added
             ]
         }
 
@@ -56,12 +56,6 @@ class Rob6323Go2Env(DirectRLEnv):
         self._base_id, _ = self._contact_sensor.find_bodies("base")
         # self._feet_ids, _ = self._contact_sensor.find_bodies(".*foot")
         # self._undesired_contact_body_ids, _ = self._contact_sensor.find_bodies(".*thigh")
-
-        # PD control parameters
-        self.Kp = torch.tensor([cfg.Kp] * 12, device=self.device).unsqueeze(0).repeat(self.num_envs, 1)
-        self.Kd = torch.tensor([cfg.Kd] * 12, device=self.device).unsqueeze(0).repeat(self.num_envs, 1)
-        self.motor_offsets = torch.zeros(self.num_envs, 12, device=self.device)
-        self.torque_limits = cfg.torque_limits
 
         # add handle for debug visualization (this is set to a valid handle inside set_debug_vis)
         self.set_debug_vis(self.cfg.debug_vis)
@@ -86,28 +80,10 @@ class Rob6323Go2Env(DirectRLEnv):
 
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
         self._actions = actions.clone()
-        # Compute desired joint positions from policy actions
-        self.desired_joint_pos = (
-            self.cfg.action_scale * self._actions 
-            + self.robot.data.default_joint_pos
-        )
+        self._processed_actions = self.cfg.action_scale * self._actions + self.robot.data.default_joint_pos
 
     def _apply_action(self) -> None:
-        # Compute PD torques
-        torques = torch.clip(
-            (
-                self.Kp * (
-                    self.desired_joint_pos 
-                    - self.robot.data.joint_pos 
-                )
-                - self.Kd * self.robot.data.joint_vel
-            ),
-            -self.torque_limits,
-            self.torque_limits,
-        )
-
-        # Apply torques to the robot
-        self.robot.set_joint_effort_target(torques)
+        self.robot.set_joint_position_target(self._processed_actions)
 
     def _get_observations(self) -> dict:
         self._previous_actions = self._actions.clone()
@@ -138,7 +114,7 @@ class Rob6323Go2Env(DirectRLEnv):
         yaw_rate_error = torch.square(self._commands[:, 2] - self.robot.data.root_ang_vel_b[:, 2])
         yaw_rate_error_mapped = torch.exp(-yaw_rate_error / 0.25)
 
-
+        
 
         # action rate penalization
         # First derivative (Current - Last)
@@ -167,12 +143,7 @@ class Rob6323Go2Env(DirectRLEnv):
         net_contact_forces = self._contact_sensor.data.net_forces_w_history
         cstr_termination_contacts = torch.any(torch.max(torch.norm(net_contact_forces[:, :, self._base_id], dim=-1), dim=1)[0] > 1.0, dim=1)
         cstr_upsidedown = self.robot.data.projected_gravity_b[:, 2] > 0
-        # terminate if base is too low
-        base_height = self.robot.data.root_pos_w[:, 2]
-        cstr_base_height_min = base_height < self.cfg.base_height_min
-
-        # apply all terminations
-        died = cstr_termination_contacts | cstr_upsidedown | cstr_base_height_min
+        died = cstr_termination_contacts | cstr_upsidedown
         return died, time_out
 
     def _reset_idx(self, env_ids: Sequence[int] | None):

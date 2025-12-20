@@ -26,7 +26,12 @@ class Rob6323Go2EnvCfg(DirectRLEnvCfg):
     # - spaces definition
     action_scale = 0.25
     action_space = 12
-    observation_space = 48
+    observation_space = 48 + 4 # Added 4 for clock inputs
+
+    raibert_heuristic_reward_scale = -10.0
+    feet_clearance_reward_scale = -30.0
+    tracking_contacts_shaped_force_reward_scale = 4.0
+
     state_space = 0
     debug_vis = True
     # PD control gains
@@ -34,7 +39,7 @@ class Rob6323Go2EnvCfg(DirectRLEnvCfg):
     Kd = 0.5   # Derivative gain
     torque_limits = 100.0  # Max torque
     base_height_min = 0.20  # Terminate if base is lower than 20cm
-    
+
     # simulation
     sim: SimulationCfg = SimulationCfg(
         dt=1 / 200,
@@ -93,4 +98,10 @@ class Rob6323Go2EnvCfg(DirectRLEnvCfg):
     # reward scales
     lin_vel_reward_scale = 1.0
     yaw_rate_reward_scale = 0.5
-    action_rate_reward_scale = -0.1
+    action_rate_reward_scale = -0.05 # Part 1
+
+    # Additional reward scales
+    orient_reward_scale = -5.0
+    lin_vel_z_reward_scale = -0.1
+    dof_vel_reward_scale = -0.0001
+    ang_vel_xy_reward_scale = -0.001

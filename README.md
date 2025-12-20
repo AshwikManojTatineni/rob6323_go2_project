@@ -206,8 +206,15 @@ We implemented advanced rewards to manage foot clearance and contact forces, ens
 
 ### Extra Credit / Robustness
 - **Friction Randomization:** To improve sim-to-real robustness, we implemented randomization for joint friction. In `_reset_idx`, `fs_stiction` and `mu_viscous` are sampled from a uniform distribution and applied as a retarding torque in `_apply_action`.
-\begin{equation}
-    \tau_{applied} = \tau_{PD} - \left( F_s \tanh(\frac{\dot{q}}{0.1}) + \mu_v \dot{q} \right)
-\end{equation}
-$$F_s \sim \mathcal{U}(0.0, 0.3)$ and $\mu_v \sim \mathcal{U}(0.0, 2.5)$$.
+\[
+\tau_{\text{applied}} = \tau_{\text{PD}} - \left( 
+F_s \tanh\!\left(\frac{\dot{q}}{0.1}\right) + \mu_v \dot{q}
+\right)
+\]
+
+\[
+F_s \sim \mathcal{U}(0.0,\,0.3), \qquad
+\mu_v \sim \mathcal{U}(0.0,\,2.5)
+\]
+
 ---

@@ -209,7 +209,7 @@ We implemented advanced rewards to manage foot clearance and contact forces, ens
 
 $$
 \tau_{\text{app}} = \tau_{\text{PD}} -
-\left(F_s \tanh\!\left(\frac{\dot{q}}{0.1}\right) + \mu_v \dot{q}\right)
+\left(F_s \tanh\left(\frac{\dot{q}}{0.1}\right) + \mu_v \dot{q}\right)
 $$
 
 $$
